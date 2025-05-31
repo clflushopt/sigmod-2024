@@ -27,9 +27,9 @@ static auto compare_with_id(const std::vector<float> &lhs,
 }
 
 auto main(int argc, char *argv[]) -> int {
-  string source_path = "../tests/dummy-data.bin";
-  string query_path = "../tests/dummy-queries.bin";
-  string knn_save_path = "../tests/output.bin";
+  string source_path = "./tests/dummy-data.bin";
+  string query_path = "./tests/dummy-queries.bin";
+  string knn_save_path = "./tests/output.bin";
 
   static constexpr uint32_t kNumDataDimensions = 102;
   static constexpr float kSampleProportion = 0.001F;
@@ -44,12 +44,12 @@ auto main(int argc, char *argv[]) -> int {
 
   // Read data points
   vector<vector<float>> nodes;
-  ReadBin(source_path, static_cast<int>(num_data_dimensions), nodes);
+  knn::ReadBin(source_path, static_cast<int>(num_data_dimensions), nodes);
   cout << nodes.size() << "\n";
   // Read queries
   uint32_t num_query_dimensions = num_data_dimensions + 2;
   vector<vector<float>> queries;
-  ReadBin(query_path, static_cast<int>(num_query_dimensions), queries);
+  knn::ReadBin(query_path, static_cast<int>(num_query_dimensions), queries);
 
   vector<vector<uint32_t>> knn_results;  // for saving knn results
 
@@ -140,6 +140,6 @@ auto main(int argc, char *argv[]) -> int {
   }
 
   // save the results
-  SaveKNN(knn_results, knn_save_path);
+  knn::SaveKNN(knn_results, knn_save_path);
   return 0;
 }

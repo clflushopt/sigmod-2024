@@ -14,6 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF) # Good practice to disable GCC-specific extensions
 
  set(SRC
      src/baseline.cpp
+     src/io.cpp
  )
 
 add_executable(${EXECUTABLE_NAME} ${SRC})

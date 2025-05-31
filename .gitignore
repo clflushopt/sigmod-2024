@@ -1,6 +1,12 @@
 # Created by https://www.toptal.com/developers/gitignore/api/c++,cmake,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=c++,cmake,visualstudiocode
 
+# Build directories
+build/
+
+# Cache files
+*.cache
+
 ### C++ ###
 # Prerequisites
 *.d
