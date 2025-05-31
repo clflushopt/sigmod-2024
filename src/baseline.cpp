@@ -26,12 +26,31 @@ static auto compare_with_id(const std::vector<float> &lhs,
   return sum;
 }
 
+struct PointsAndQueries {
+  vector<vector<float>> nodes;
+  vector<vector<float>> queries;
+};
+
+static auto read_points_and_queries(const string &source_path,
+                                    const string &query_path,
+                                    const uint32_t node_dimensions,
+                                    const uint32_t query_dimensions)
+    -> PointsAndQueries {
+  PointsAndQueries pq;
+  knn::ReadBin(source_path, node_dimensions,
+               pq.nodes);  // Assuming 102 dimensions
+  knn::ReadBin(query_path, query_dimensions,
+               pq.queries);  // Assuming queries have 104 dimensions
+  return pq;
+}
+
 auto main(int argc, char *argv[]) -> int {
   string source_path = "./tests/dummy-data.bin";
   string query_path = "./tests/dummy-queries.bin";
   string knn_save_path = "./tests/output.bin";
 
   static constexpr uint32_t kNumDataDimensions = 102;
+  static constexpr uint32_t kNumQueryDimensions = 104;
   static constexpr float kSampleProportion = 0.001F;
 
   // Also accept other path for source data
@@ -39,24 +58,17 @@ auto main(int argc, char *argv[]) -> int {
     source_path = string(argv[1]);
   }
 
-  uint32_t num_data_dimensions = kNumDataDimensions;
-  float sample_proportion = kSampleProportion;
-
-  // Read data points
-  vector<vector<float>> nodes;
-  knn::ReadBin(source_path, static_cast<int>(num_data_dimensions), nodes);
-  cout << nodes.size() << "\n";
-  // Read queries
-  uint32_t num_query_dimensions = num_data_dimensions + 2;
-  vector<vector<float>> queries;
-  knn::ReadBin(query_path, static_cast<int>(num_query_dimensions), queries);
+  PointsAndQueries pq = read_points_and_queries(
+      source_path, query_path, kNumDataDimensions, kNumQueryDimensions);
 
   vector<vector<uint32_t>> knn_results;  // for saving knn results
 
-  uint32_t n_points = nodes.size();
-  uint32_t dimensions = nodes[0].size();
-  uint32_t n_queries = queries.size();
-  auto sample_prop = (n_points * static_cast<uint32_t>(sample_proportion));
+  auto [nodes, queries] = std::tie(pq.nodes, pq.queries);
+
+  uint32_t n_points = pq.nodes.size();
+  uint32_t dimensions = pq.nodes[0].size();
+  uint32_t n_queries = pq.queries.size();
+  auto sample_prop = (n_points * static_cast<uint32_t>(kSampleProportion));
 
   cout << "# data points:  " << n_points << "\n";
   cout << "# data point dim:  " << dimensions << "\n";

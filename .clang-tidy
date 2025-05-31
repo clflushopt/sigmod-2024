@@ -11,11 +11,14 @@ Checks: "-*,\
             -cppcoreguidelines-pro-bounds-pointer-arithmetic,\
           google-*,\
           misc-*,\
+            -misc-use-anonymous-namespace,\
           modernize-*,\
           performance-*,\
           portability-*,\
           readability-*,\
             -readability-identifier-length,\
+            -readability-function-cognitive-complexity,\
+            -readability-static-definition-in-anonymous-namespace,\
           "
 CheckOptions:
     - { key: readability-identifier-naming.ConstexprVariableCase,    value: CamelCase }
