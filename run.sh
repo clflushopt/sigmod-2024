@@ -1,3 +1,14 @@
-make clean
-make
+CMAKE_BUILD_DIR=build
+mkdir -p $CMAKE_BUILD_DIR
+cd $CMAKE_BUILD_DIR
+
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+make -j$(nproc)
+
+if [ $? -ne 0 ]; then
+    echo "Build failed"
+    exit 1
+fi
+
+echo "Build successful, running tests..."
 ./test

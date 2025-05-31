@@ -1,0 +1,16 @@
+FormatStyle: file
+WarningsAsErrors: "*"
+Checks: "-*,\
+          abseil-*,\
+          bugprone-*,\
+          cppcoreguidelines-*,\
+          google-*,\
+          misc-*,\
+          modernize-*,\
+          performance-*,\
+          portability-*,\
+          readability-*,\
+          "
+CheckOptions:
+    - { key: readability-identifier-naming.ConstexprVariableCase,    value: CamelCase }
+    - { key: readability-identifier-naming.ConstexprVariablePrefix,  value: k         }

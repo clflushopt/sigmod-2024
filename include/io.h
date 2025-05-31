@@ -3,13 +3,13 @@
  *
  */
 
+#include <cassert>
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <numeric>
 #include <string>
 #include <vector>
-
-#include "assert.h"
 using std::cout;
 using std::endl;
 using std::string;
@@ -20,7 +20,7 @@ using std::vector;
 /// @param path target save path, the output knng should be named as
 /// "output.bin" for evaluation
 void SaveKNN(const std::vector<std::vector<uint32_t>> &knns,
-              const std::string &path = "output.bin") {
+             const std::string &path = "../output.bin") {
   std::ofstream ofs(path, std::ios::out | std::ios::binary);
   const int K = 100;
   const uint32_t N = knns.size();
@@ -32,13 +32,10 @@ void SaveKNN(const std::vector<std::vector<uint32_t>> &knns,
   ofs.close();
 }
 
-
-
 /// @brief Reading binary data vectors. Raw data store as a (N x dim)
 /// @param file_path file path of binary data
 /// @param data returned 2D data vectors
-void ReadBin(const std::string &file_path,
-             const int num_dimensions,
+void ReadBin(const std::string &file_path, const int num_dimensions,
              std::vector<std::vector<float>> &data) {
   std::cout << "Reading Data: " << file_path << std::endl;
   std::ifstream ifs;
