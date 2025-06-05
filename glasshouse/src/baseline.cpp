@@ -50,6 +50,7 @@ auto main(int argc, char *argv[]) -> int {
   string knn_save_path = "./tests/output.bin";
 
   static constexpr uint32_t kNumDataDimensions = 102;
+  // kNumQueryDimensions = kNumDataDimensions + 2
   static constexpr uint32_t kNumQueryDimensions = 104;
   static constexpr float kSampleProportion = 0.001F;
 
