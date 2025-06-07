@@ -29,8 +29,8 @@ impl Baseline {
             Vec::with_capacity(queries_dataset.num_queries as usize);
 
         let num_to_sample = ((nodes_dataset.num_vectors as f32 * Self::SAMPLE_PROPORTION) as u32)
-            .max(1) // Ensure at least 1 sample
-            .min(nodes_dataset.num_vectors); // Don't exceed total number of nodes
+            .max(1)
+            .min(nodes_dataset.num_vectors);
 
         println!("Baseline Algorithm Parameters:");
         println!("  K-Nearest: {}", K_NEAREST);

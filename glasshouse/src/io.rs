@@ -54,7 +54,7 @@ impl NodesDataset {
         let mut buffer = vec![0.0f32; NODE_TOTAL_DIMENSIONS];
 
         for _ in 0..num_vectors {
-            // Unsafe block for reading directly into f32 slice
+            // Unsafe block for doing a zero-copy read into a float buffer.
             unsafe {
                 let byte_buffer = std::slice::from_raw_parts_mut(
                     buffer.as_mut_ptr() as *mut u8,
@@ -157,9 +157,6 @@ pub fn write<P: AsRef<Path>>(
     let mut writer = BufWriter::new(file);
 
     for single_query_results in results {
-        // single_query_results is [u32; K_NEAREST]
-        // Ensure K_NEAREST is correct (guaranteed by type)
-        // Convert [u32; K_NEAREST] to &[u8] for writing
         let byte_slice = unsafe {
             std::slice::from_raw_parts(
                 single_query_results.as_ptr() as *const u8,
