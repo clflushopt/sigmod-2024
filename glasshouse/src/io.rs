@@ -1,96 +1,175 @@
 //! Utilities for reading and writing the binary format used
 //! by the SIGMOD 2024 datasets.
+//!
+//! The binary format used by the SIGMOD 2024 datasets is a custom format
+//! that stores data points as vectors of floats. Each data point is stored
+//! as a sequence of 4-byte floats in little-endian order.
+//!
+//! We differentiate between two types of files, nodes and queries.
+//!
+//! Nodes are represented as vectors of dimension `102` where the first
+//! two entries in the vector are the categorical attribute and timestamp
+//! attribute respectively. The remaining `100` entries are the actual vector
+//! entries.
+//!
+//! Queries are represented as vectors of dimension `104` where the first
+//! entry is the query type; which distinguishes between non-constrained
+//! queries, equality queries, range queries and equality and range queries.
+use crate::constants::*;
+use crate::types::*; // Or specific types like NodesDataset, QueriesDataset, etc.
+use std::fs::File;
+use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::mem;
+use std::path::Path;
 
-type Vector = Vec<f32>;
-
-/// Writes a binary file containing data points.
-pub fn write(path: &str, data: &[Vector]) -> Result<(), std::io::Error> {
-    use std::fs::File;
-    use std::io::{self, Write};
-    // The data points are stored as float vectors in a binary format.
-    let mut file = File::create(path)?;
-
-    // First 4 bytes are the number of data points.
-    let n_points = data.len() as u32;
-    file.write_all(&n_points.to_le_bytes())?;
-
-    if n_points == 0 {
-        return Ok(());
+impl NodesDataset {
+    /// Returns a parsed node at the given index.
+    pub fn get(&self, index: usize) -> Option<ParsedNode> {
+        if index >= self.num_vectors as usize {
+            return None;
+        }
+        Some(ParsedNode {
+            c_attr: self.c_attrs[index],
+            t_attr: self.t_attrs[index],
+            vector: &self.vectors[index],
+        })
     }
 
-    // Each data point is a vector of floats.
-    for point in data {
-        if point.len() != data[0].len() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "All data points must have the same number of dimensions",
-            ));
-        }
-        for &value in point {
-            file.write_all(&value.to_le_bytes())?;
-        }
-    }
+    /// Reads the nodes dataset from a binary file.
+    pub fn read<P: AsRef<Path>>(file_path: P) -> io::Result<Self> {
+        let file = File::open(file_path)?;
+        let mut reader = BufReader::new(file);
 
-    Ok(())
+        let num_vectors = {
+            let mut buf = [0u8; 4];
+            reader.read_exact(&mut buf)?;
+            u32::from_le_bytes(buf)
+        };
+
+        let mut c_attrs = Vec::with_capacity(num_vectors as usize);
+        let mut t_attrs = Vec::with_capacity(num_vectors as usize);
+        let mut vectors = Vec::with_capacity(num_vectors as usize);
+
+        // Re-use a buffer for each item to avoid reallocations.
+        let mut buffer = vec![0.0f32; NODE_TOTAL_DIMENSIONS];
+
+        for _ in 0..num_vectors {
+            // Unsafe block for reading directly into f32 slice
+            unsafe {
+                let byte_buffer = std::slice::from_raw_parts_mut(
+                    buffer.as_mut_ptr() as *mut u8,
+                    buffer.len() * mem::size_of::<f32>(),
+                );
+                reader.read_exact(byte_buffer)?;
+            }
+
+            c_attrs.push(buffer[NODE_C_ATTR_INDEX]);
+            t_attrs.push(buffer[NODE_T_ATTR_INDEX]);
+
+            let mut vector_data = [0.0f32; VECTOR_DIMENSIONS];
+            vector_data.copy_from_slice(&buffer[NODE_VECTOR_START_INDEX..NODE_TOTAL_DIMENSIONS]);
+            vectors.push(vector_data);
+        }
+
+        Ok(NodesDataset {
+            num_vectors,
+            c_attrs,
+            t_attrs,
+            vectors,
+        })
+    }
 }
 
-/// Reads a binary file containing data points.
-pub fn read(path: &str, n_dims: usize) -> Result<Vec<Vector>, std::io::Error> {
-    use std::fs::File;
-    use std::io::{self, Read};
-
-    println!("Processing file: {}", path);
-    if n_dims == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Number of dimensions must be greater than zero",
-        ));
-    }
-
-    let mut file = File::open(path)?;
-
-    // First 4 bytes are the number of data points.
-    let mut buffer = vec![0u8; 4];
-    file.read_exact(&mut buffer)?;
-    let n_points = u32::from_le_bytes(buffer.try_into().unwrap()) as usize;
-    println!("Number of points: {}", n_points);
-    if n_points == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "File contains no data points",
-        ));
-    }
-    // The n-points are how many data points there are in total
-    // and each data point is a vector of n_dims floats.
-    //
-    // We will read them row by row and write them to the `data`
-    // vector as a vector of floats.
-    let mut buffer = vec![0u8; n_points * n_dims * 4];
-    file.read_exact(&mut buffer)?;
-    if buffer.len() != n_points * n_dims * 4 {
-        return Err(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "File does not contain enough data points",
-        ));
-    }
-    println!("Read {} bytes of data", buffer.len());
-
-    // Next step is to convert the bytes into vectors of floats.
-    // Each float is 4 bytes, so we can convert the bytes directly.
-    let num_rows = n_points;
-    let mut data = Vec::with_capacity(num_rows);
-    let mut row = Vec::with_capacity(n_dims);
-    for chunk in buffer.chunks_exact(n_dims * 4) {
-        row.clear();
-        for float_chunk in chunk.chunks_exact(4) {
-            let float = f32::from_le_bytes(float_chunk.try_into().unwrap());
-            row.push(float);
+impl QueriesDataset {
+    /// Returns a parsed query at the given index.
+    pub fn get(&self, index: usize) -> Option<ParsedQuery> {
+        if index >= self.num_queries as usize {
+            return None;
         }
-        data.push(row.clone());
+        Some(ParsedQuery {
+            query_type: self.query_types[index],
+            v_categorical: self.v_categoricals[index].categorical_value(),
+            t_lower_bound: self.t_lower_bounds[index].value(),
+            t_upper_bound: self.t_upper_bounds[index].value(),
+            query_vector: &self.query_vectors[index],
+        })
     }
 
-    println!("Successfully read {} data points", data.len());
-    Ok(data)
+    /// Reads the queries dataset from a binary file.
+    pub fn read<P: AsRef<Path>>(file_path: P) -> io::Result<Self> {
+        let file = File::open(file_path)?;
+        let mut reader = BufReader::new(file);
+
+        let num_queries = {
+            let mut buf = [0u8; 4];
+            reader.read_exact(&mut buf)?;
+            u32::from_le_bytes(buf)
+        };
+
+        let mut query_types_vec = Vec::with_capacity(num_queries as usize);
+        let mut v_categoricals_vec = Vec::with_capacity(num_queries as usize);
+        let mut t_lower_bounds_vec = Vec::with_capacity(num_queries as usize);
+        let mut t_upper_bounds_vec = Vec::with_capacity(num_queries as usize);
+        let mut query_vectors_vec = Vec::with_capacity(num_queries as usize);
+
+        let mut buffer = vec![0.0f32; QUERY_TOTAL_DIMENSIONS];
+
+        for _ in 0..num_queries {
+            unsafe {
+                let byte_buffer = std::slice::from_raw_parts_mut(
+                    buffer.as_mut_ptr() as *mut u8,
+                    buffer.len() * mem::size_of::<f32>(),
+                );
+                reader.read_exact(byte_buffer)?;
+            }
+
+            match QueryType::from_f32(buffer[QUERY_TYPE_INDEX]) {
+                Ok(qt) => query_types_vec.push(qt),
+                Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, e)),
+            }
+            v_categoricals_vec.push(OptionalFilterValue::new(buffer[QUERY_V_CAT_INDEX]));
+            t_lower_bounds_vec.push(OptionalFilterValue::new(buffer[QUERY_T_LOWER_INDEX]));
+            t_upper_bounds_vec.push(OptionalFilterValue::new(buffer[QUERY_T_UPPER_INDEX]));
+
+            let mut vector_data = [0.0f32; VECTOR_DIMENSIONS];
+            vector_data.copy_from_slice(&buffer[QUERY_VECTOR_START_INDEX..QUERY_TOTAL_DIMENSIONS]);
+            query_vectors_vec.push(vector_data);
+        }
+
+        Ok(QueriesDataset {
+            num_queries,
+            query_types: query_types_vec,
+            v_categoricals: v_categoricals_vec,
+            t_lower_bounds: t_lower_bounds_vec,
+            t_upper_bounds: t_upper_bounds_vec,
+            query_vectors: query_vectors_vec,
+        })
+    }
+}
+
+/// Saves the KNN results to a binary file.
+/// The format is |Q| x K_NEAREST x id (uint32_t).
+pub fn write<P: AsRef<Path>>(
+    results: &QueryResults, // This is Vec<[u32; K_NEAREST]>
+    file_path: P,
+) -> io::Result<()> {
+    let file = File::create(file_path)?;
+    let mut writer = BufWriter::new(file);
+
+    for single_query_results in results {
+        // single_query_results is [u32; K_NEAREST]
+        // Ensure K_NEAREST is correct (guaranteed by type)
+        // Convert [u32; K_NEAREST] to &[u8] for writing
+        let byte_slice = unsafe {
+            std::slice::from_raw_parts(
+                single_query_results.as_ptr() as *const u8,
+                K_NEAREST * mem::size_of::<u32>(),
+            )
+        };
+        writer.write_all(byte_slice)?;
+    }
+    writer.flush()?; // Ensure all buffered data is written
+    Ok(())
 }
 
 #[cfg(test)]
@@ -98,11 +177,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_write_and_read() {
-        let nodes = "tests/dummy-data.bin";
-        let queries = "tests/dummy-queries.bin";
+    fn can_read_dummy_datasets() {
+        let nodes_file = "tests/dummy-data.bin";
+        let queries_file = "tests/dummy-queries.bin";
         // Read the file and check that it contains the expected data.
-        assert!(read(nodes, 102).is_ok());
-        assert!(read(queries, 104).is_ok());
+        let nodes = NodesDataset::read(nodes_file);
+        let queries = QueriesDataset::read(queries_file);
+
+        assert!(nodes.is_ok());
+        assert!(queries.is_ok());
+
+        assert!(nodes.unwrap().num_vectors == 10000);
+        assert!(queries.unwrap().num_queries == 10000);
+    }
+
+    #[test]
+    fn can_query_individual_nodes_and_queries() {
+        let nodes_file = "tests/dummy-data.bin";
+        let queries_file = "tests/dummy-queries.bin";
+
+        let nodes = NodesDataset::read(nodes_file).unwrap();
+        let queries = QueriesDataset::read(queries_file).unwrap();
+
+        assert!(nodes.get(0).is_some());
+        assert!(queries.get(0).is_some());
     }
 }
